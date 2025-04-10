@@ -85,7 +85,7 @@ const ChatPanel: React.FC = () => {
 
   return (
     <div className="chat-container bg-card p-4 h-full">
-      <div className="text-xl font-semibold mb-4 pb-2 border-b">OVKit Chat Builder</div>
+      <div className="text-xl font-semibold mb-4 pb-2 border-b">Assistant</div>
       
       <ScrollArea className="flex-grow mb-4 pr-4">
         <div className="flex flex-col">
