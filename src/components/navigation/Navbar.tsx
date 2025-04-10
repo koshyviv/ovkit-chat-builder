@@ -1,6 +1,6 @@
 
 import React from "react";
-import { Menu, User } from "lucide-react";
+import { Menu, UserCircle } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -41,15 +41,6 @@ const Navbar: React.FC = () => {
         <h1 className="text-lg font-semibold">Generation Tool</h1>
       </div>
 
-      {/* Navigation Section - Hidden on Mobile */}
-      {!isMobile && (
-        <div className="flex items-center gap-6 text-sm font-medium text-muted-foreground">
-          <a href="#" className="hover:text-foreground transition-colors">Warehouse Assistant</a>
-          <a href="#" className="hover:text-foreground transition-colors">Templates</a>
-          <a href="#" className="hover:text-foreground transition-colors">History</a>
-        </div>
-      )}
-
       {/* User Menu and Mobile Menu */}
       <div className="flex items-center gap-2">
         {/* User Profile Dropdown */}
@@ -60,10 +51,7 @@ const Navbar: React.FC = () => {
               className="relative h-10 w-10 rounded-full"
               aria-label="User menu"
             >
-              <Avatar>
-                <AvatarImage src="/placeholder.svg" alt="User" />
-                <AvatarFallback>WA</AvatarFallback>
-              </Avatar>
+              <UserCircle className="h-6 w-6 text-primary" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
