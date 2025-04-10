@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Check, Loader2 } from "lucide-react";
+import { Send, Check, Loader2, FileSpreadsheet, Download } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import { Message, MessageType } from "@/types/chat";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,6 @@ const INITIAL_MESSAGES: Message[] = [
   },
 ];
 
-// OpenAI API endpoint
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 // Server API endpoint
 const SERVER_API_URL = "http://localhost:3001/api";
 
@@ -38,8 +37,7 @@ const ChatPanel: React.FC = () => {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [warehouseAttributes, setWarehouseAttributes] = useState<WarehouseAttributes>(initialAttributes);
-  const [apiKey, setApiKey] = useState<string>("");
-  const [showApiKeyInput, setShowApiKeyInput] = useState<boolean>(true);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -141,52 +139,92 @@ const ChatPanel: React.FC = () => {
     }
   };
 
-  // Call OpenAI API to get bot response
-  const getOpenAIResponse = async (userMessages: Message[]): Promise<string> => {
-    if (!apiKey) {
-      return "Please provide your OpenAI API key to continue the conversation.";
-    }
-
+  // Generate Excel file
+  const generateExcelFile = async () => {
+    setIsGeneratingExcel(true);
     try {
-      const messages = [
-        {
-          role: "system",
-          content: `You are a warehouse configuration assistant. Help the user design their warehouse by collecting the following information: length, width, height, pallet type, storage capacity, and storage type. Current information gathered: ${JSON.stringify(warehouseAttributes)}. Ask for missing information one by one, confirming what you've understood. Be concise and friendly.`
+      const response = await fetch(`${SERVER_API_URL}/generate-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        ...userMessages.map(msg => ({
-          role: msg.type === MessageType.USER ? "user" : "assistant",
-          content: msg.content
-        }))
-      ];
+        body: JSON.stringify(warehouseAttributes),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: "Excel File Generated",
+          description: "Your warehouse data has been exported to Excel.",
+        });
+        
+        // Add a message about the Excel generation
+        const excelMessage: Message = {
+          id: Date.now().toString(),
+          type: MessageType.BOT,
+          content: "I've generated an Excel file with your warehouse configuration. You can download it using the download button.",
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, excelMessage]);
+      } else {
+        console.error("Error generating Excel:", data.error);
+        toast({
+          title: "Excel Generation Error",
+          description: "Failed to generate Excel file. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating Excel:", error);
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to the server. Make sure the server is running.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
 
-      const response = await fetch(OPENAI_API_URL, {
+  // Download Excel file
+  const downloadExcelFile = () => {
+    window.open(`${SERVER_API_URL}/download-excel`, '_blank');
+  };
+
+  // Get response from server-side OpenAI
+  const getOpenAIResponse = async (userMessages: Message[]): Promise<string> => {
+    try {
+      const messagesSendToAPI = userMessages.map(msg => ({
+        role: msg.type === MessageType.USER ? "user" : "assistant",
+        content: msg.content
+      }));
+
+      const response = await fetch(`${SERVER_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages,
-          temperature: 0.7,
-          max_tokens: 150
+          messages: messagesSendToAPI,
+          warehouseAttributes: warehouseAttributes
         })
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error?.message || "Failed to get response from OpenAI");
+        throw new Error(error.details || "Failed to get response from server");
       }
 
       const data = await response.json();
-      return data.choices[0].message.content;
+      return data.content;
     } catch (error) {
-      console.error("OpenAI API error:", error);
-      return "Sorry, I had trouble connecting to my knowledge base. Please try again or check your API key.";
+      console.error("Server API error:", error);
+      return "Sorry, I had trouble connecting to my knowledge base. Please try again later.";
     }
   };
 
-  // Fallback response if OpenAI API is not available
+  // Fallback response if API is not available
   const getFallbackResponse = (): string => {
     const attributes = warehouseAttributes;
     
@@ -203,23 +241,6 @@ const ChatPanel: React.FC = () => {
   // Handle sending a message
   const handleSendMessage = async () => {
     if (inputValue.trim() === "") return;
-
-    // If API key input is showing, set the API key
-    if (showApiKeyInput) {
-      setApiKey(inputValue);
-      setShowApiKeyInput(false);
-      setInputValue("");
-      
-      // Add a message indicating API key has been set
-      const apiKeyMessage: Message = {
-        id: Date.now().toString(),
-        type: MessageType.BOT,
-        content: "API key has been set. Now, let's start designing your warehouse. What's the height of your warehouse in meters?",
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, apiKeyMessage]);
-      return;
-    }
 
     // Add user message
     const userMessage: Message = {
@@ -289,11 +310,43 @@ const ChatPanel: React.FC = () => {
     }
   };
 
+  // Check if all attributes are filled (for enabling Excel generation)
+  const allAttributesFilled = Object.values(warehouseAttributes).every(value => value !== null);
+
   return (
     <div className="chat-container bg-card p-4 h-full flex flex-col">
       <div className="text-xl font-semibold mb-2 pb-2 border-b flex items-center justify-between">
         <span>Warehouse Assistant</span>
         <div className="flex gap-2">
+          {allAttributesFilled && (
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-1"
+                onClick={generateExcelFile}
+                disabled={isGeneratingExcel}
+              >
+                {isGeneratingExcel ? (
+                  <Loader2 size={14} className="animate-spin mr-1" />
+                ) : (
+                  <FileSpreadsheet size={14} className="mr-1" />
+                )}
+                {isGeneratingExcel ? "Generating..." : "Generate Excel"}
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-1"
+                onClick={downloadExcelFile}
+              >
+                <Download size={14} className="mr-1" />
+                Download Excel
+              </Button>
+            </div>
+          )}
+          
           {Object.entries(warehouseAttributes).map(([key, value], index) => (
             <div 
               key={key} 
@@ -324,10 +377,9 @@ const ChatPanel: React.FC = () => {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={showApiKeyInput ? "Enter your OpenAI API key..." : "Type your message..."}
+          placeholder="Type your message..."
           className="flex-grow"
           disabled={isLoading}
-          type={showApiKeyInput ? "password" : "text"}
         />
         <Button 
           onClick={handleSendMessage} 

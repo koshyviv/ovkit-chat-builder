@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { Loader2, LayoutGrid, RefreshCw, Save } from "lucide-react";
+import { Loader2, LayoutGrid, RefreshCw, Save, FileSpreadsheet, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PlaceholderVisualization from "./PlaceholderVisualization";
@@ -27,6 +27,7 @@ const VisualizationPanel: React.FC = () => {
   const [warehouseAttributes, setWarehouseAttributes] = useState<WarehouseAttributes>(DEFAULT_ATTRIBUTES);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
 
   // Simulate loading delay
   useEffect(() => {
@@ -138,6 +139,50 @@ const VisualizationPanel: React.FC = () => {
     }
   };
 
+  // Generate Excel file
+  const generateExcelFile = async () => {
+    setIsGeneratingExcel(true);
+    try {
+      const response = await fetch(`${SERVER_API_URL}/generate-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(warehouseAttributes),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: "Excel File Generated",
+          description: "Your warehouse data has been exported to Excel.",
+        });
+      } else {
+        console.error("Error generating Excel:", data.error);
+        toast({
+          title: "Excel Generation Error",
+          description: "Failed to generate Excel file. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating Excel:", error);
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to the server. Make sure the server is running.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingExcel(false);
+    }
+  };
+
+  // Download Excel file
+  const downloadExcelFile = () => {
+    window.open(`${SERVER_API_URL}/download-excel`, '_blank');
+  };
+
   // Initialize OVKit stream (simulated)
   const handleInitializeStream = () => {
     setIsLoading(true);
@@ -186,6 +231,8 @@ const VisualizationPanel: React.FC = () => {
       </Card>
     ));
   };
+
+  const allAttributesFilled = Object.values(warehouseAttributes).every(value => value !== null);
 
   return (
     <div className="h-full flex flex-col bg-background p-4">
@@ -298,7 +345,39 @@ const VisualizationPanel: React.FC = () => {
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-        {hasStream ? renderAttributeCards() : (
+        {hasStream ? (
+          <>
+            {renderAttributeCards()}
+            {allAttributesFilled && (
+              <div className="col-span-3 flex justify-end gap-2 mt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1"
+                  onClick={generateExcelFile}
+                  disabled={isGeneratingExcel}
+                >
+                  {isGeneratingExcel ? (
+                    <Loader2 size={14} className="animate-spin mr-1" />
+                  ) : (
+                    <FileSpreadsheet size={14} className="mr-1" />
+                  )}
+                  {isGeneratingExcel ? "Generating..." : "Generate Excel"}
+                </Button>
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex items-center gap-1"
+                  onClick={downloadExcelFile}
+                >
+                  <Download size={14} className="mr-1" />
+                  Download Excel
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
           <div className="col-span-3 p-3 rounded-md bg-card shadow-sm">
             <div className="font-medium">Warehouse Configuration</div>
             <div className="text-muted-foreground">Complete the chat to generate your warehouse visualization</div>

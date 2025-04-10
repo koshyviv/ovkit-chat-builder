@@ -21,6 +21,10 @@ This application helps users design warehouse layouts through a chat interface p
    ```
    yarn
    ```
+3. Create a `.env` file based on `.env.example` and add your OpenAI API key:
+   ```
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
 
 ### Running the Application
 
@@ -67,6 +71,7 @@ node server.js
 - 2D and 3D visualization of warehouse layouts
 - Storage and retrieval of warehouse configurations
 - Visual indicators for configuration progress
+- Excel file generation for warehouse data export
 
 ## Configuration
 
@@ -81,11 +86,11 @@ The application collects the following warehouse attributes:
 
 ## API Key
 
-The application requires an OpenAI API key to function. Enter your API key when prompted in the chat interface.
+The application requires an OpenAI API key. Create a `.env` file with your API key as shown in the installation instructions.
 
 ## Data Storage
 
-Warehouse configurations are stored in `data/warehouse-config.json` on the server. This allows configurations to persist between sessions.
+Warehouse configurations are stored in `data/warehouse-config.json` on the server. Excel files are generated as `data/warehouse-data.xlsx`. This allows configurations to persist between sessions.
 
 ## License
 
