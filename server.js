@@ -1,12 +1,20 @@
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { OpenAI } from 'openai';
+import ExcelJS from 'exceljs';
+import { z } from 'zod';
+import { zodResponseFormat } from 'openai/helpers/zod';
 
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
-const { OpenAI } = require('openai');
-const ExcelJS = require('exceljs');
+// Calculate __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config();
 
 // Initialize Express app
 const app = express();
@@ -15,6 +23,16 @@ const PORT = process.env.PORT || 3001;
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Define Zod schema for warehouse data extraction
+const WarehouseDataSchema = z.object({
+  length: z.number().describe("Length of the warehouse in meters"),
+  width: z.number().describe("Width of the warehouse in meters"),
+  height: z.number().describe("Height of the warehouse in meters"),
+  pallet_type: z.string().describe("Type of pallet used (e.g., 'euro', 'standard')"),
+  capacity: z.number().describe("Storage capacity in number of pallets"),
+  storage_type: z.string().describe("Type of storage system (e.g., 'asrs', 'selective racking')")
 });
 
 // Middleware
@@ -30,6 +48,7 @@ if (!fs.existsSync(dataDir)) {
 const configFilePath = path.join(dataDir, 'warehouse-config.json');
 const excelFilePath = path.join(dataDir, 'warehouse-data.xlsx');
 
+console.log('Setting up route: GET /api/warehouse-config');
 // API Endpoints for warehouse configuration
 app.get('/api/warehouse-config', (req, res) => {
   try {
@@ -45,6 +64,7 @@ app.get('/api/warehouse-config', (req, res) => {
   }
 });
 
+console.log('Setting up route: POST /api/warehouse-config');
 app.post('/api/warehouse-config', (req, res) => {
   try {
     const config = req.body;
@@ -57,13 +77,18 @@ app.post('/api/warehouse-config', (req, res) => {
 });
 
 // API Endpoint for OpenAI chat completion
+console.log('Setting up route: POST /api/chat');
 app.post('/api/chat', async (req, res) => {
   try {
     const { messages, warehouseAttributes } = req.body;
     
     const systemMessage = {
       role: "system",
-      content: `You are a warehouse configuration assistant. Help the user design their warehouse by collecting the following information: length, width, height, pallet type, storage capacity, and storage type. Current information gathered: ${JSON.stringify(warehouseAttributes)}. Ask for missing information one by one, confirming what you've understood. Be concise and friendly.`
+      content: "You are a warehouse configuration assistant. " +
+      "Help the user design their warehouse by collecting the following information: length, width, height, pallet type, storage capacity, and storage type. " +
+      "Current information gathered: " + JSON.stringify(warehouseAttributes) + ". " +
+      "Ask for missing information one by one, confirming what you've understood. Be concise and friendly." + 
+      "IMPORTANT: Once all information is received add '#completed' to the end of your response."
     };
 
     const response = await openai.chat.completions.create({
@@ -73,9 +98,49 @@ app.post('/api/chat', async (req, res) => {
       max_tokens: 150
     });
 
+    let responseContent = response.choices[0].message.content;
+    let parsedData = null;
+
+    if (responseContent && responseContent.includes('#completed')) {
+      console.log("Detected #completed flag. Attempting structured data extraction...");
+      // Remove the flag before parsing
+      const contentToParse = responseContent.replace('#completed', '').trim();
+
+      try {
+        // Add a small delay or retry mechanism if needed, but try direct parse first
+        const extraction = await openai.beta.chat.completions.parse({
+          model: "gpt-4o-mini", // Or "gpt-4o-2024-08-06" if mini doesn't support parse well
+          messages: [
+            { role: "system", content: "You are an expert at structured data extraction. Extract the warehouse configuration details from the provided text into the specified JSON format." },
+            { role: "user", content: contentToParse }, // Use the original content without the flag
+          ],
+          response_format: zodResponseFormat(WarehouseDataSchema, "warehouse_data_extraction"),
+        });
+
+        if (extraction.choices[0]?.message?.parsed) {
+            parsedData = extraction.choices[0].message.parsed;
+            console.log("Successfully parsed structured data:", parsedData);
+            // Optionally, you might want to adjust the responseContent sent to the UI
+            // responseContent = "Configuration complete. Details extracted."; 
+        } else {
+             console.error("Failed to parse structured data, 'parsed' field missing in response.");
+             // Decide how to handle this - send original content? Send an error?
+             // For now, we'll proceed without parsed data but log the issue.
+        }
+
+      } catch (parseError) {
+        console.error('Error during structured data extraction:', parseError);
+        // Decide how to handle: fall back to sending original content, send specific error, etc.
+        // For now, log the error and proceed without parsed data.
+        // Consider sending a specific message to the UI indicating parsing failure.
+      }
+    }
+
+    // Send response back to client
     res.json({
-      content: response.choices[0].message.content,
-      usage: response.usage
+      content: responseContent, // Send original content (or modified if desired)
+      usage: response.usage,
+      parsed: parsedData // Will be null if parsing didn't happen or failed
     });
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
@@ -87,6 +152,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // API Endpoint for generating Excel file
+console.log('Setting up route: POST /api/generate-excel');
 app.post('/api/generate-excel', async (req, res) => {
   try {
     const warehouseData = req.body;
@@ -139,6 +205,7 @@ app.post('/api/generate-excel', async (req, res) => {
 });
 
 // API Endpoint for downloading the Excel file
+console.log('Setting up route: GET /api/download-excel');
 app.get('/api/download-excel', (req, res) => {
   try {
     if (fs.existsSync(excelFilePath)) {
@@ -153,11 +220,20 @@ app.get('/api/download-excel', (req, res) => {
 });
 
 // Serve static files from the React app
+console.log('Setting up static file serving from:', path.join(__dirname, 'dist'));
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
-app.get('*', (req, res) => {
+console.log('Setting up catchall route handler');
+// Instead of app.get('/*', ...) which might be causing issues with path-to-regexp
+app.use((req, res, next) => {
+  console.log(`Handling request for ${req.path}`);
+  // Skip API routes
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  // Send the React index.html for all other routes
   res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
