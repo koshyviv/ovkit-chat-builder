@@ -1,14 +1,26 @@
 
 import React, { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PlaceholderVisualization from "./PlaceholderVisualization";
+import { Card, CardContent } from "@/components/ui/card";
+import { WarehouseAttributes } from "@/types/warehouse";
+
+const DEFAULT_ATTRIBUTES: WarehouseAttributes = {
+  length: null,
+  width: null,
+  height: null,
+  palletType: null,
+  storage: null,
+  storageType: null
+};
 
 const VisualizationPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasStream, setHasStream] = useState(false);
   const [currentViewType, setCurrentViewType] = useState<"3d" | "2d">("3d");
+  const [warehouseAttributes, setWarehouseAttributes] = useState<WarehouseAttributes>(DEFAULT_ATTRIBUTES);
 
   // Simulate loading delay
   useEffect(() => {
@@ -17,6 +29,30 @@ const VisualizationPanel: React.FC = () => {
     }, 2000);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  // Listen for console.log messages with warehouse configuration
+  useEffect(() => {
+    const originalConsoleLog = console.log;
+    console.log = function(...args) {
+      // Call the original console.log
+      originalConsoleLog.apply(console, args);
+      
+      // Check if this is a warehouse configuration log
+      if (args.length > 1 && args[0] === "Warehouse Configuration:") {
+        const configData = args[1];
+        setWarehouseAttributes(configData);
+        
+        // Auto-initialize stream when all data is available
+        if (Object.values(configData).every(value => value !== null)) {
+          handleInitializeStream();
+        }
+      }
+    };
+
+    return () => {
+      console.log = originalConsoleLog;
+    };
   }, []);
 
   // Initialize OVKit stream (simulated)
@@ -35,6 +71,37 @@ const VisualizationPanel: React.FC = () => {
       setHasStream(false);
       setIsLoading(false);
     }, 1000);
+  };
+
+  const renderAttributeCards = () => {
+    const attributeLabels = {
+      length: "Length",
+      width: "Width",
+      height: "Height",
+      palletType: "Pallet Type",
+      storage: "Storage Capacity",
+      storageType: "Storage Type"
+    };
+
+    const attributeUnits = {
+      length: "m",
+      width: "m",
+      height: "m",
+      palletType: "",
+      storage: " pallets",
+      storageType: ""
+    };
+
+    return Object.entries(warehouseAttributes).map(([key, value]) => (
+      <Card key={key} className="p-3 rounded-md bg-card shadow-sm">
+        <CardContent className="p-0">
+          <div className="font-medium">{attributeLabels[key as keyof typeof attributeLabels]}</div>
+          <div className="text-muted-foreground">
+            {value !== null ? `${value}${attributeUnits[key as keyof typeof attributeUnits]}` : "Not specified"}
+          </div>
+        </CardContent>
+      </Card>
+    ));
   };
 
   return (
@@ -56,12 +123,17 @@ const VisualizationPanel: React.FC = () => {
               variant="default" 
               size="sm"
               onClick={handleInitializeStream}
-              disabled={isLoading}
+              disabled={isLoading || Object.values(warehouseAttributes).some(value => value === null)}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Initializing...
+                </>
+              ) : Object.values(warehouseAttributes).some(value => value === null) ? (
+                <>
+                  <LayoutGrid className="mr-2 h-4 w-4" />
+                  Waiting for Data...
                 </>
               ) : (
                 "Initialize OVKit Stream"
@@ -94,8 +166,8 @@ const VisualizationPanel: React.FC = () => {
               </div>
               <p className="text-muted-foreground">
                 {currentViewType === "3d" 
-                  ? "Live OVKit stream would appear here, showing the 3D warehouse model based on chat inputs." 
-                  : "2D floor plan view would show the layout from above with measurements and zone markings."}
+                  ? `Showing a ${warehouseAttributes.length}m × ${warehouseAttributes.width}m × ${warehouseAttributes.height}m warehouse with ${warehouseAttributes.storage} ${warehouseAttributes.palletType} pallets using ${warehouseAttributes.storageType} storage.` 
+                  : "2D floor plan view showing layout from above with measurements and zone markings."}
               </p>
             </div>
           </div>
@@ -104,22 +176,14 @@ const VisualizationPanel: React.FC = () => {
         )}
       </div>
 
-      {hasStream && (
-        <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-          <div className="p-3 rounded-md bg-card shadow-sm">
-            <div className="font-medium">Dimensions</div>
-            <div className="text-muted-foreground">30m × 20m × 12m</div>
+      <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+        {hasStream ? renderAttributeCards() : (
+          <div className="col-span-3 p-3 rounded-md bg-card shadow-sm">
+            <div className="font-medium">Warehouse Configuration</div>
+            <div className="text-muted-foreground">Complete the chat to generate your warehouse visualization</div>
           </div>
-          <div className="p-3 rounded-md bg-card shadow-sm">
-            <div className="font-medium">Pallets</div>
-            <div className="text-muted-foreground">450 Standard</div>
-          </div>
-          <div className="p-3 rounded-md bg-card shadow-sm">
-            <div className="font-medium">Storage Type</div>
-            <div className="text-muted-foreground">High Bay Racking</div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

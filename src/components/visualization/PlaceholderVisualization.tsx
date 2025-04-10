@@ -23,19 +23,19 @@ const PlaceholderVisualization: React.FC = () => {
           <div className="w-8 h-8 mb-2 rounded-md border-2 border-dashed border-muted-foreground flex items-center justify-center">
             <Box size={16} />
           </div>
+          <span>Dimensions</span>
+        </div>
+        <div className="flex flex-col items-center text-xs text-muted-foreground">
+          <div className="w-8 h-8 mb-2 rounded-md border-2 border-dashed border-muted-foreground flex items-center justify-center">
+            <Box size={16} />
+          </div>
           <span>Storage</span>
         </div>
         <div className="flex flex-col items-center text-xs text-muted-foreground">
           <div className="w-8 h-8 mb-2 rounded-md border-2 border-dashed border-muted-foreground flex items-center justify-center">
             <Box size={16} />
           </div>
-          <span>Layout</span>
-        </div>
-        <div className="flex flex-col items-center text-xs text-muted-foreground">
-          <div className="w-8 h-8 mb-2 rounded-md border-2 border-dashed border-muted-foreground flex items-center justify-center">
-            <Box size={16} />
-          </div>
-          <span>Zones</span>
+          <span>Configuration</span>
         </div>
       </div>
     </div>

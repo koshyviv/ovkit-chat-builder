@@ -1,12 +1,25 @@
 
 import React, { useState, useRef, useEffect } from "react";
-import { Send } from "lucide-react";
+import { Send, Check, Loader2 } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import { Message, MessageType } from "@/types/chat";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { WarehouseAttributes } from "@/types/warehouse";
+import { toast } from "@/hooks/use-toast";
 
+// Initial warehouse attributes
+const initialAttributes: WarehouseAttributes = {
+  length: null,
+  width: null,
+  height: null,
+  palletType: null,
+  storage: null,
+  storageType: null
+};
+
+// Initial welcome message
 const INITIAL_MESSAGES: Message[] = [
   {
     id: "1",
@@ -16,10 +29,16 @@ const INITIAL_MESSAGES: Message[] = [
   },
 ];
 
+// OpenAI API endpoint
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+
 const ChatPanel: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [warehouseAttributes, setWarehouseAttributes] = useState<WarehouseAttributes>(initialAttributes);
+  const [apiKey, setApiKey] = useState<string>("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState<boolean>(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,8 +49,108 @@ const ChatPanel: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const handleSendMessage = () => {
+  // Process user message and extract warehouse attributes
+  const processUserMessage = (message: string): void => {
+    const lengthMatch = message.match(/(\d+(\.\d+)?)\s*(meters|m|feet|ft)?\s*(length|long|by|x)/i);
+    const widthMatch = message.match(/(\d+(\.\d+)?)\s*(meters|m|feet|ft)?\s*(width|wide|by|x)/i);
+    const heightMatch = message.match(/(\d+(\.\d+)?)\s*(meters|m|feet|ft)?\s*(height|high|tall)/i);
+    const palletMatch = message.match(/(standard|euro|block|stringer|plastic|wooden)\s*pallet/i);
+    const storageMatch = message.match(/(\d+)\s*(pallets|pallet|storage|capacity)/i);
+    const storageTypeMatch = message.match(/(rack|racking|shelving|block stacking|drive-in|pallet flow|push-back|cantilever|mezzanine)/i);
+
+    setWarehouseAttributes(prev => {
+      const updated = { ...prev };
+      
+      if (lengthMatch && !updated.length) updated.length = parseFloat(lengthMatch[1]);
+      if (widthMatch && !updated.width) updated.width = parseFloat(widthMatch[1]);
+      if (heightMatch && !updated.height) updated.height = parseFloat(heightMatch[1]);
+      if (palletMatch && !updated.palletType) updated.palletType = palletMatch[1].toLowerCase();
+      if (storageMatch && !updated.storage) updated.storage = parseInt(storageMatch[1]);
+      if (storageTypeMatch && !updated.storageType) updated.storageType = storageTypeMatch[1].toLowerCase();
+      
+      return updated;
+    });
+  };
+
+  // Call OpenAI API to get bot response
+  const getOpenAIResponse = async (userMessages: Message[]): Promise<string> => {
+    if (!apiKey) {
+      return "Please provide your OpenAI API key to continue the conversation.";
+    }
+
+    try {
+      const messages = [
+        {
+          role: "system",
+          content: `You are a warehouse configuration assistant. Help the user design their warehouse by collecting the following information: length, width, height, pallet type, storage capacity, and storage type. Current information gathered: ${JSON.stringify(warehouseAttributes)}. Ask for missing information one by one, confirming what you've understood. Be concise and friendly.`
+        },
+        ...userMessages.map(msg => ({
+          role: msg.type === MessageType.USER ? "user" : "assistant",
+          content: msg.content
+        }))
+      ];
+
+      const response = await fetch(OPENAI_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages,
+          temperature: 0.7,
+          max_tokens: 150
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || "Failed to get response from OpenAI");
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error("OpenAI API error:", error);
+      return "Sorry, I had trouble connecting to my knowledge base. Please try again or check your API key.";
+    }
+  };
+
+  // Fallback response if OpenAI API is not available
+  const getFallbackResponse = (): string => {
+    const attributes = warehouseAttributes;
+    
+    if (attributes.height === null) return "What's the height of your warehouse in meters?";
+    if (attributes.length === null) return "Great! Now, what's the length of your warehouse in meters?";
+    if (attributes.width === null) return "What's the width of your warehouse in meters?";
+    if (attributes.palletType === null) return "What type of pallets will you be using? (Standard, Euro, Block, etc.)";
+    if (attributes.storage === null) return "How many pallets do you need to store in total?";
+    if (attributes.storageType === null) return "What type of storage system would you prefer? (Racking, Block Stacking, Drive-in, etc.)";
+    
+    return "Thanks for providing all the details! I'm generating your warehouse visualization now.";
+  };
+
+  // Handle sending a message
+  const handleSendMessage = async () => {
     if (inputValue.trim() === "") return;
+
+    // If API key input is showing, set the API key
+    if (showApiKeyInput) {
+      setApiKey(inputValue);
+      setShowApiKeyInput(false);
+      setInputValue("");
+      
+      // Add a message indicating API key has been set
+      const apiKeyMessage: Message = {
+        id: Date.now().toString(),
+        type: MessageType.BOT,
+        content: "API key has been set. Now, let's start designing your warehouse. What's the height of your warehouse in meters?",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, apiKeyMessage]);
+      return;
+    }
 
     // Add user message
     const userMessage: Message = {
@@ -41,21 +160,54 @@ const ChatPanel: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
 
-    // Simulate bot response
-    setTimeout(() => {
+    // Process user message to extract warehouse attributes
+    processUserMessage(userMessage.content);
+
+    // Get bot response from OpenAI or fallback
+    try {
+      const updatedMessages = [...messages, userMessage];
+      const botResponse = await getOpenAIResponse(updatedMessages);
+      
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: MessageType.BOT,
-        content: getBotResponse(messages.length),
+        content: botResponse,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, botMessage]);
+      
+      setMessages(prev => [...prev, botMessage]);
+
+      // Check if all attributes are filled
+      const allAttributesFilled = Object.values(warehouseAttributes).every(value => value !== null);
+      if (allAttributesFilled) {
+        // Notify about complete configuration
+        toast({
+          title: "Warehouse Configuration Complete!",
+          description: "All required information has been collected.",
+        });
+
+        // Send data to visualization component (via console for now)
+        console.log("Warehouse Configuration:", warehouseAttributes);
+      }
+    } catch (error) {
+      console.error("Error getting response:", error);
+      
+      // Use fallback response
+      const fallbackMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: MessageType.BOT,
+        content: getFallbackResponse(),
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, fallbackMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -65,27 +217,26 @@ const ChatPanel: React.FC = () => {
     }
   };
 
-  // For demo purposes - in production this would be replaced with API call
-  const getBotResponse = (messageCount: number): string => {
-    const responses = [
-      "Great! Now, what's the width and length of the warehouse floor in meters?",
-      "Perfect. How many pallets do you need to store in total?",
-      "What type of goods will primarily be stored? This helps determine the racking type.",
-      "Do you need any special temperature controls for the goods?",
-      "Are there any height restrictions due to sprinkler systems or other overhead equipment?",
-      "Based on your answers, I'm starting to generate a visualization of your warehouse layout. You'll see it appearing in the right panel shortly.",
-      "Would you like to add any office spaces or specific work areas?",
-      "Do you need loading docks? If yes, how many?",
-      "I'm refining the warehouse layout based on your requirements. The visualization should be updating in real-time.",
-      "Is there anything specific about the layout you'd like to change?",
-    ];
-
-    return responses[messageCount % responses.length];
-  };
-
   return (
-    <div className="chat-container bg-card p-4 h-full">
-      <div className="text-xl font-semibold mb-4 pb-2 border-b">Assistant</div>
+    <div className="chat-container bg-card p-4 h-full flex flex-col">
+      <div className="text-xl font-semibold mb-2 pb-2 border-b flex items-center justify-between">
+        <span>Warehouse Assistant</span>
+        <div className="flex gap-2">
+          {Object.entries(warehouseAttributes).map(([key, value], index) => (
+            <div 
+              key={key} 
+              className={`w-6 h-6 rounded-full flex items-center justify-center border ${value !== null ? 'bg-green-100 border-green-500' : 'bg-gray-100 border-gray-300'}`}
+              title={`${key}: ${value !== null ? value : 'Not provided yet'}`}
+            >
+              {value !== null ? (
+                <Check size={14} className="text-green-500" />
+              ) : (
+                <span className="text-xs text-gray-400">{index + 1}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
       
       <ScrollArea className="flex-grow mb-4 pr-4">
         <div className="flex flex-col">
@@ -101,9 +252,10 @@ const ChatPanel: React.FC = () => {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
+          placeholder={showApiKeyInput ? "Enter your OpenAI API key..." : "Type your message..."}
           className="flex-grow"
           disabled={isLoading}
+          type={showApiKeyInput ? "password" : "text"}
         />
         <Button 
           onClick={handleSendMessage} 
@@ -111,7 +263,7 @@ const ChatPanel: React.FC = () => {
           disabled={isLoading || inputValue.trim() === ""}
           className="transition-all duration-150"
         >
-          <Send size={18} />
+          {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </Button>
       </div>
     </div>

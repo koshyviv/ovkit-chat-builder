@@ -13,12 +13,17 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   return (
     <div
       className={cn(
-        "message-bubble",
-        isUserMessage ? "user-message" : "bot-message"
+        "mb-4 p-3 rounded-lg max-w-[85%]",
+        isUserMessage 
+          ? "ml-auto bg-primary text-primary-foreground" 
+          : "mr-auto bg-muted"
       )}
     >
       <div className="message-content">{message.content}</div>
-      <div className="text-xs opacity-60 mt-1">
+      <div className={cn(
+        "text-xs mt-1",
+        isUserMessage ? "opacity-70" : "text-muted-foreground"
+      )}>
         {formatTime(message.timestamp)}
       </div>
     </div>
