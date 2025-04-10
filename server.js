@@ -37,12 +37,12 @@ const WarehouseDataSchema = z.object({
 
 // Define the mapping for Excel updates
 const EXCEL_MAPPING = {
-  length: { sheet: 'Sheet1', cell: 'C2' },
-  width: { sheet: 'Sheet1', cell: 'C3' },
-  height: { sheet: 'Sheet1', cell: 'C4' },
-  pallet_type: { sheet: 'Sheet1', cell: 'C5' },
-  capacity: { sheet: 'Sheet1', cell: 'C6' },
-  storage_type: { sheet: 'Sheet1', cell: 'C7' },
+  length: { sheet: 'Sheet1', cell: 'A3' },
+  width: { sheet: 'Sheet1', cell: 'A6' },
+  height: { sheet: 'Sheet1', cell: 'A9' },
+  pallet_type: { sheet: 'Sheet1', cell: 'C21' },
+  capacity: { sheet: 'Sheet1', cell: 'C9' },
+  // storage_type: { sheet: 'Sheet1', cell: 'C7' },
   // Add more mappings as needed
 };
 
@@ -143,8 +143,8 @@ app.post('/api/chat', async (req, res) => {
 
         // --- Write to Excel Template (if data was parsed) ---
         if (parsedData) {
-          // await updateExcelTemplate(parsedData); // Uncomment this line to enable Excel writing
-          console.log("Excel template update skipped (currently commented out).");
+          await updateExcelTemplate(parsedData); // Uncomment this line to enable Excel writing
+          // console.log("Excel template update skipped (currently commented out).");
         }
         // ----------------------------------------------------
 
