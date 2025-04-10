@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from "react";
-import { Loader2, LayoutGrid } from "lucide-react";
+import { Loader2, LayoutGrid, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PlaceholderVisualization from "./PlaceholderVisualization";
 import { Card, CardContent } from "@/components/ui/card";
 import { WarehouseAttributes } from "@/types/warehouse";
+import { toast } from "@/hooks/use-toast";
 
 const DEFAULT_ATTRIBUTES: WarehouseAttributes = {
   length: null,
@@ -16,11 +17,16 @@ const DEFAULT_ATTRIBUTES: WarehouseAttributes = {
   storageType: null
 };
 
+// Server API endpoint
+const SERVER_API_URL = "http://localhost:3001/api";
+
 const VisualizationPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasStream, setHasStream] = useState(false);
   const [currentViewType, setCurrentViewType] = useState<"3d" | "2d">("3d");
   const [warehouseAttributes, setWarehouseAttributes] = useState<WarehouseAttributes>(DEFAULT_ATTRIBUTES);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
 
   // Simulate loading delay
   useEffect(() => {
@@ -54,6 +60,83 @@ const VisualizationPanel: React.FC = () => {
       console.log = originalConsoleLog;
     };
   }, []);
+
+  // Load existing configuration from server
+  const loadExistingConfig = async () => {
+    setIsLoadingConfig(true);
+    try {
+      const response = await fetch(`${SERVER_API_URL}/warehouse-config`);
+      const data = await response.json();
+      
+      if (data && data.length !== undefined) {
+        // We have a valid configuration
+        setWarehouseAttributes(data);
+        
+        // Auto-initialize stream when all data is available
+        if (Object.values(data).every(value => value !== null)) {
+          handleInitializeStream();
+        }
+        
+        toast({
+          title: "Configuration Loaded",
+          description: "Your warehouse configuration has been loaded from the server.",
+        });
+      } else {
+        toast({
+          title: "No Configuration Found",
+          description: "No existing warehouse configuration was found on the server.",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading configuration:", error);
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to the server. Make sure the server is running.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  };
+
+  // Save configuration to server
+  const saveConfigurationToServer = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${SERVER_API_URL}/warehouse-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(warehouseAttributes),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: "Configuration Saved",
+          description: "Your warehouse configuration has been saved to the server.",
+        });
+      } else {
+        console.error("Error saving configuration:", data.error);
+        toast({
+          title: "Save Error",
+          description: "Failed to save your configuration. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving configuration:", error);
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to the server. Make sure the server is running.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Initialize OVKit stream (simulated)
   const handleInitializeStream = () => {
@@ -110,6 +193,44 @@ const VisualizationPanel: React.FC = () => {
         <h2 className="text-xl font-semibold">Warehouse Visualization</h2>
         
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={loadExistingConfig}
+            disabled={isLoadingConfig}
+          >
+            {isLoadingConfig ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Load Config
+              </>
+            )}
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={saveConfigurationToServer}
+            disabled={isSaving || Object.values(warehouseAttributes).some(value => value === null)}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Save Config
+              </>
+            )}
+          </Button>
+          
           {hasStream ? (
             <Button 
               variant="outline" 

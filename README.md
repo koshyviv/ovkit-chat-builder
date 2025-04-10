@@ -1,73 +1,92 @@
-# Welcome to your Lovable project
 
-## Project info
+# Warehouse Layout Generator
 
-**URL**: https://lovable.dev/projects/72d9d075-f901-485a-95fc-6dfe67741766
+This application helps users design warehouse layouts through a chat interface powered by OpenAI's GPT-4o-mini. The application collects warehouse specifications through natural conversation and visualizes the resulting layout.
 
-## How can I edit this code?
+## Getting Started
 
-There are several ways of editing your application.
+### Prerequisites
 
-**Use Lovable**
+- Node.js (v14 or higher)
+- npm or yarn
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/72d9d075-f901-485a-95fc-6dfe67741766) and start prompting.
+### Installation
 
-Changes made via Lovable will be committed automatically to this repo.
+1. Clone the repository
+2. Install dependencies:
+   ```
+   npm install
+   ```
+   or
+   ```
+   yarn
+   ```
 
-**Use your preferred IDE**
+### Running the Application
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+This application has two parts that need to be run:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. **Start the backend server**:
+   ```
+   node server.js
+   ```
+   This will start the server on port 3001.
 
-Follow these steps:
+2. **Start the frontend development server**:
+   ```
+   npm run dev
+   ```
+   or
+   ```
+   yarn dev
+   ```
+   This will start the frontend application.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Building for Production
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+To build the application for production:
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+npm run build
+```
+or
+```
+yarn build
 ```
 
-**Edit a file directly in GitHub**
+The build files will be in the `dist` folder. After building, you can run both the backend and frontend with:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```
+node server.js
+```
 
-**Use GitHub Codespaces**
+## Features
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Interactive chat interface for collecting warehouse specifications
+- Integration with OpenAI GPT-4o-mini for natural language processing
+- 2D and 3D visualization of warehouse layouts
+- Storage and retrieval of warehouse configurations
+- Visual indicators for configuration progress
 
-## What technologies are used for this project?
+## Configuration
 
-This project is built with:
+The application collects the following warehouse attributes:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Length (in meters)
+- Width (in meters)
+- Height (in meters)
+- Pallet Type
+- Storage Capacity (number of pallets)
+- Storage Type
 
-## How can I deploy this project?
+## API Key
 
-Simply open [Lovable](https://lovable.dev/projects/72d9d075-f901-485a-95fc-6dfe67741766) and click on Share -> Publish.
+The application requires an OpenAI API key to function. Enter your API key when prompted in the chat interface.
 
-## Can I connect a custom domain to my Lovable project?
+## Data Storage
 
-Yes it is!
+Warehouse configurations are stored in `data/warehouse-config.json` on the server. This allows configurations to persist between sessions.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## License
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+[MIT License](LICENSE)

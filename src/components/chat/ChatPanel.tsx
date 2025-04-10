@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Check, Loader2 } from "lucide-react";
 import ChatMessage from "./ChatMessage";
@@ -31,6 +30,8 @@ const INITIAL_MESSAGES: Message[] = [
 
 // OpenAI API endpoint
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+// Server API endpoint
+const SERVER_API_URL = "http://localhost:3001/api";
 
 const ChatPanel: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
@@ -44,6 +45,38 @@ const ChatPanel: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Load existing configuration from server if available
+  useEffect(() => {
+    const loadExistingConfig = async () => {
+      try {
+        const response = await fetch(`${SERVER_API_URL}/warehouse-config`);
+        const data = await response.json();
+        
+        if (data && data.length !== undefined) {
+          // We have a valid configuration
+          setWarehouseAttributes(data);
+          
+          // Notify the visualization panel
+          console.log("Warehouse Configuration:", data);
+          
+          // Add a message about the loaded configuration
+          const loadedMessage: Message = {
+            id: Date.now().toString(),
+            type: MessageType.BOT,
+            content: "I've loaded your previous warehouse configuration. You can continue from where you left off or start a new design.",
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, loadedMessage]);
+        }
+      } catch (error) {
+        console.error("Error loading configuration:", error);
+        // Silently fail - we'll just start with a new configuration
+      }
+    };
+    
+    loadExistingConfig();
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,6 +103,42 @@ const ChatPanel: React.FC = () => {
       
       return updated;
     });
+  };
+
+  // Save configuration to server
+  const saveConfigurationToServer = async () => {
+    try {
+      const response = await fetch(`${SERVER_API_URL}/warehouse-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(warehouseAttributes),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast({
+          title: "Configuration Saved",
+          description: "Your warehouse configuration has been saved to the server.",
+        });
+      } else {
+        console.error("Error saving configuration:", data.error);
+        toast({
+          title: "Save Error",
+          description: "Failed to save your configuration. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error saving configuration:", error);
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to the server. Make sure the server is running.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Call OpenAI API to get bot response
@@ -190,8 +259,11 @@ const ChatPanel: React.FC = () => {
           description: "All required information has been collected.",
         });
 
-        // Send data to visualization component (via console for now)
+        // Send data to visualization component
         console.log("Warehouse Configuration:", warehouseAttributes);
+        
+        // Save configuration to server
+        saveConfigurationToServer();
       }
     } catch (error) {
       console.error("Error getting response:", error);
