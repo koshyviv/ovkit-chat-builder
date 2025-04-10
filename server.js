@@ -88,6 +88,8 @@ app.post('/api/chat', async (req, res) => {
       "Help the user design their warehouse by collecting the following information: length, width, height, pallet type, storage capacity, and storage type. " +
       "Current information gathered: " + JSON.stringify(warehouseAttributes) + ". " +
       "Ask for missing information one by one, confirming what you've understood. Be concise and friendly." + 
+      "if the user provides a number assume it is in meters, unless they specify otherwise." +
+      "you are expert in warehouse design and storage systems, so provide subtle positive comments as you move ahead into the next question." +
       "IMPORTANT: Once all information is received add '#completed' to the end of your response."
     };
 
