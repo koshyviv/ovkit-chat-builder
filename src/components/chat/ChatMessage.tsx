@@ -1,7 +1,7 @@
-
 import React from "react";
 import { Message, MessageType } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
 
 interface ChatMessageProps {
   message: Message;
@@ -19,7 +19,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           : "mr-auto bg-muted"
       )}
     >
-      <div className="message-content">{message.content}</div>
+      <div className="message-content prose prose-sm dark:prose-invert">
+        {isUserMessage ? (
+          <div>{message.content}</div>
+        ) : (
+          <ReactMarkdown>{message.content}</ReactMarkdown>
+        )}
+      </div>
       <div className={cn(
         "text-xs mt-1",
         isUserMessage ? "opacity-70" : "text-muted-foreground"

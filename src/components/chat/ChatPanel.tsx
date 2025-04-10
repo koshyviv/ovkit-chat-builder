@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Send, Check, Loader2, FileSpreadsheet, Download } from "lucide-react";
 import ChatMessage from "./ChatMessage";
@@ -32,6 +31,13 @@ const INITIAL_MESSAGES: Message[] = [
 // Server API endpoint
 const SERVER_API_URL = "http://localhost:3001/api";
 
+// Define types/interfaces
+interface ChatApiResponse {
+  content: string;
+  parsed: Record<string, any> | null; // Or a more specific type if preferred
+  usage?: Record<string, any>; // Keep usage if needed, though not currently used here
+}
+
 const ChatPanel: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState("");
@@ -45,36 +51,36 @@ const ChatPanel: React.FC = () => {
   }, [messages]);
 
   // Load existing configuration from server if available
-  useEffect(() => {
-    const loadExistingConfig = async () => {
-      try {
-        const response = await fetch(`${SERVER_API_URL}/warehouse-config`);
-        const data = await response.json();
+  // useEffect(() => {
+  //   const loadExistingConfig = async () => {
+  //     try {
+  //       const response = await fetch(`${SERVER_API_URL}/warehouse-config`);
+  //       const data = await response.json();
         
-        if (data && data.length !== undefined) {
-          // We have a valid configuration
-          setWarehouseAttributes(data);
+  //       if (data && data.length !== undefined) {
+  //         // We have a valid configuration
+  //         setWarehouseAttributes(data);
           
-          // Notify the visualization panel
-          console.log("Warehouse Configuration:", data);
+  //         // Notify the visualization panel
+  //         console.log("Warehouse Configuration:", data);
           
-          // Add a message about the loaded configuration
-          const loadedMessage: Message = {
-            id: Date.now().toString(),
-            type: MessageType.BOT,
-            content: "I've loaded your previous warehouse configuration. You can continue from where you left off or start a new design.",
-            timestamp: new Date(),
-          };
-          setMessages(prev => [...prev, loadedMessage]);
-        }
-      } catch (error) {
-        console.error("Error loading configuration:", error);
-        // Silently fail - we'll just start with a new configuration
-      }
-    };
+  //         // Add a message about the loaded configuration
+  //         const loadedMessage: Message = {
+  //           id: Date.now().toString(),
+  //           type: MessageType.BOT,
+  //           content: "I've loaded your previous warehouse configuration. You can continue from where you left off or start a new design.",
+  //           timestamp: new Date(),
+  //         };
+  //         setMessages(prev => [...prev, loadedMessage]);
+  //       }
+  //     } catch (error) {
+  //       console.error("Error loading configuration:", error);
+  //       // Silently fail - we'll just start with a new configuration
+  //     }
+  //   };
     
-    loadExistingConfig();
-  }, []);
+  //   loadExistingConfig();
+  // }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118,8 +124,8 @@ const ChatPanel: React.FC = () => {
       
       if (response.ok) {
         toast({
-          title: "Configuration Saved",
-          description: "Your warehouse configuration has been saved to the server.",
+          title: "Configuration Extracted",
+          description: "Your warehouse configuration has been saved.",
         });
       } else {
         console.error("Error saving configuration:", data.error);
@@ -139,61 +145,9 @@ const ChatPanel: React.FC = () => {
     }
   };
 
-  // Generate Excel file
-  const generateExcelFile = async () => {
-    setIsGeneratingExcel(true);
-    try {
-      const response = await fetch(`${SERVER_API_URL}/generate-excel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(warehouseAttributes),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        toast({
-          title: "Excel File Generated",
-          description: "Your warehouse data has been exported to Excel.",
-        });
-        
-        // Add a message about the Excel generation
-        const excelMessage: Message = {
-          id: Date.now().toString(),
-          type: MessageType.BOT,
-          content: "I've generated an Excel file with your warehouse configuration. You can download it using the download button.",
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, excelMessage]);
-      } else {
-        console.error("Error generating Excel:", data.error);
-        toast({
-          title: "Excel Generation Error",
-          description: "Failed to generate Excel file. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error generating Excel:", error);
-      toast({
-        title: "Connection Error",
-        description: "Could not connect to the server. Make sure the server is running.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingExcel(false);
-    }
-  };
-
-  // Download Excel file
-  const downloadExcelFile = () => {
-    window.open(`${SERVER_API_URL}/download-excel`, '_blank');
-  };
 
   // Get response from server-side OpenAI
-  const getOpenAIResponse = async (userMessages: Message[]): Promise<string> => {
+  const getOpenAIResponse = async (userMessages: Message[]): Promise<ChatApiResponse> => {
     try {
       const messagesSendToAPI = userMessages.map(msg => ({
         role: msg.type === MessageType.USER ? "user" : "assistant",
@@ -216,11 +170,14 @@ const ChatPanel: React.FC = () => {
         throw new Error(error.details || "Failed to get response from server");
       }
 
-      const data = await response.json();
-      return data.content;
+      const data: ChatApiResponse = await response.json();
+      return data;
     } catch (error) {
       console.error("Server API error:", error);
-      return "Sorry, I had trouble connecting to my knowledge base. Please try again later.";
+      return { 
+        content: "Sorry, I had trouble connecting to my knowledge base. Please try again later.",
+        parsed: null
+      };
     }
   };
 
@@ -250,50 +207,102 @@ const ChatPanel: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Optimistically update messages list
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInputValue("");
     setIsLoading(true);
 
-    // Process user message to extract warehouse attributes
-    processUserMessage(userMessage.content);
+    // Process user message to potentially update attributes (optional, as parsed data is primary)
+    // processUserMessage(userMessage.content); // Consider if this incremental update is still needed
 
     // Get bot response from OpenAI or fallback
     try {
-      const updatedMessages = [...messages, userMessage];
-      const botResponse = await getOpenAIResponse(updatedMessages);
+      const apiResponse = await getOpenAIResponse(updatedMessages); // Get the full { content, parsed } object
       
+      let botResponseContent = apiResponse.content;
+      const parsedData = apiResponse.parsed;
+      let isComplete = false;
+      let transformedData: WarehouseAttributes | null = null;
+
+      // Check for completion primarily based on parsed data
+      if (parsedData) {
+        isComplete = true;
+        console.log("Received parsed data from server:", parsedData);
+
+        // Transform snake_case keys to camelCase and map capacity
+        transformedData = {
+          length: parsedData.length ?? null,
+          width: parsedData.width ?? null,
+          height: parsedData.height ?? null,
+          palletType: parsedData.pallet_type ?? null,
+          storage: parsedData.capacity ?? null, // Map 'capacity' to 'storage'
+          storageType: parsedData.storage_type ?? null,
+        };
+        console.log("Transformed data for state and event:", transformedData);
+
+        // Update local state with the definitive parsed data
+        setWarehouseAttributes(transformedData);
+        
+        // Optionally remove #completed if it's still present in content
+        if (botResponseContent.includes('#completed')) {
+           botResponseContent = botResponseContent.replace('#completed', '').trim();
+        }
+
+      } else if (botResponseContent.includes('#completed')) {
+        // Fallback: Completion indicated by keyword but no parsed data (parsing failed?)
+        isComplete = true;
+        console.warn("Completion flag #completed found, but no parsed data received from server.");
+        toast({
+          title: "Parsing Issue",
+          description: "Configuration seems complete, but structured data couldn't be extracted automatically.",
+          variant: "destructive", // Or 'default' with a less severe message
+        });
+         // Remove the keyword from the message before displaying
+        botResponseContent = botResponseContent.replace('#completed', '').trim();
+        // Keep current warehouseAttributes as is, or decide on fallback behavior
+        // transformedData remains null here
+      }
+
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: MessageType.BOT,
-        content: botResponse,
+        content: botResponseContent,
         timestamp: new Date(),
       };
       
-      setMessages(prev => [...prev, botMessage]);
+      setMessages(prev => [...prev, botMessage]); // Add bot message
 
-      // Check if all attributes are filled
-      const allAttributesFilled = Object.values(warehouseAttributes).every(value => value !== null);
-      if (allAttributesFilled) {
+      // Check if the response indicated completion
+      if (isComplete) {
         // Notify about complete configuration
         toast({
           title: "Warehouse Configuration Complete!",
-          description: "All required information has been collected.",
+          description: transformedData 
+            ? "All required information has been collected and parsed."
+            : "All required information seems to be collected (parsing failed).",
         });
 
-        // Send data to visualization component
-        console.log("Warehouse Configuration:", warehouseAttributes);
+        // Dispatch event WITH parsed data if available
+        const event = new CustomEvent('warehouseConfigComplete', { 
+          detail: { parsedConfig: transformedData } // Send transformedData (can be null if parsing failed)
+        });
+        window.dispatchEvent(event);
         
-        // Save configuration to server
-        saveConfigurationToServer();
+        // Save configuration to server (using the potentially updated state)
+        // Ensure saveConfigurationToServer uses the latest state, which it should if called after setWarehouseAttributes
+        // If transformedData is not null, saveConfigurationToServer will use it because we called setWarehouseAttributes
+        saveConfigurationToServer(); 
       }
     } catch (error) {
       console.error("Error getting response:", error);
       
-      // Use fallback response
+      // Use fallback response (or handle error differently)
       const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: MessageType.BOT,
-        content: getFallbackResponse(),
+        content: "An error occurred while processing your request.", // Ensure content is a string
         timestamp: new Date(),
       };
       
@@ -317,34 +326,9 @@ const ChatPanel: React.FC = () => {
     <div className="chat-container bg-card p-4 h-full flex flex-col">
       <div className="text-xl font-semibold mb-2 pb-2 border-b flex items-center justify-between">
         <span>Warehouse Assistant</span>
-        <div className="flex gap-2">
+        {/* <div className="flex gap-2">
           {allAttributesFilled && (
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center gap-1"
-                onClick={generateExcelFile}
-                disabled={isGeneratingExcel}
-              >
-                {isGeneratingExcel ? (
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                ) : (
-                  <FileSpreadsheet size={14} className="mr-1" />
-                )}
-                {isGeneratingExcel ? "Generating..." : "Generate Excel"}
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center gap-1"
-                onClick={downloadExcelFile}
-              >
-                <Download size={14} className="mr-1" />
-                Download Excel
-              </Button>
-            </div>
+            <div className="flex gap-2"></div>
           )}
           
           {Object.entries(warehouseAttributes).map(([key, value], index) => (
@@ -360,7 +344,7 @@ const ChatPanel: React.FC = () => {
               )}
             </div>
           ))}
-        </div>
+        </div> */}
       </div>
       
       <ScrollArea className="flex-grow mb-4 pr-4">

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Loader2, LayoutGrid, RefreshCw, Save, FileSpreadsheet, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ const SERVER_API_URL = "http://localhost:3001/api";
 const VisualizationPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasStream, setHasStream] = useState(false);
-  const [currentViewType, setCurrentViewType] = useState<"3d" | "2d">("3d");
   const [warehouseAttributes, setWarehouseAttributes] = useState<WarehouseAttributes>(DEFAULT_ATTRIBUTES);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
@@ -38,154 +36,52 @@ const VisualizationPanel: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Listen for console.log messages with warehouse configuration
+  // Listen for custom event from ChatPanel
   useEffect(() => {
-    const originalConsoleLog = console.log;
-    console.log = function(...args) {
-      // Call the original console.log
-      originalConsoleLog.apply(console, args);
-      
-      // Check if this is a warehouse configuration log
-      if (args.length > 1 && args[0] === "Warehouse Configuration:") {
-        const configData = args[1];
+    const handleConfigComplete = (event: CustomEvent) => {
+      // Check if detail and parsedConfig exist
+      if (event.detail && event.detail.parsedConfig) {
+        const configData: WarehouseAttributes = event.detail.parsedConfig;
+        console.log("Received parsed config via event:", configData);
         setWarehouseAttributes(configData);
-        
-        // Auto-initialize stream when all data is available
-        if (Object.values(configData).every(value => value !== null)) {
-          handleInitializeStream();
-        }
+        // Auto-initialize stream with the newly received, parsed configuration
+        handleInitializeStream(); 
+      } else {
+        console.warn("warehouseConfigComplete event received, but missing parsedConfig in detail.");
+        // Optionally, handle the case where the event is dispatched without parsed data (e.g., parsing failed)
+        // Maybe fall back to the state updated by ChatPanel? Or show an error?
+        // For now, we just log a warning.
       }
     };
 
+    // Add event listener
+    window.addEventListener('warehouseConfigComplete', handleConfigComplete as EventListener);
+    
+    // Remove event listener on cleanup
     return () => {
-      console.log = originalConsoleLog;
+      window.removeEventListener('warehouseConfigComplete', handleConfigComplete as EventListener);
     };
   }, []);
 
-  // Load existing configuration from server
-  const loadExistingConfig = async () => {
-    setIsLoadingConfig(true);
-    try {
-      const response = await fetch(`${SERVER_API_URL}/warehouse-config`);
-      const data = await response.json();
-      
-      if (data && data.length !== undefined) {
-        // We have a valid configuration
-        setWarehouseAttributes(data);
-        
-        // Auto-initialize stream when all data is available
-        if (Object.values(data).every(value => value !== null)) {
-          handleInitializeStream();
-        }
-        
-        toast({
-          title: "Configuration Loaded",
-          description: "Your warehouse configuration has been loaded from the server.",
-        });
-      } else {
-        toast({
-          title: "No Configuration Found",
-          description: "No existing warehouse configuration was found on the server.",
-        });
-      }
-    } catch (error) {
-      console.error("Error loading configuration:", error);
-      toast({
-        title: "Connection Error",
-        description: "Could not connect to the server. Make sure the server is running.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingConfig(false);
-    }
-  };
 
-  // Save configuration to server
-  const saveConfigurationToServer = async () => {
-    setIsSaving(true);
-    try {
-      const response = await fetch(`${SERVER_API_URL}/warehouse-config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(warehouseAttributes),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        toast({
-          title: "Configuration Saved",
-          description: "Your warehouse configuration has been saved to the server.",
-        });
-      } else {
-        console.error("Error saving configuration:", data.error);
-        toast({
-          title: "Save Error",
-          description: "Failed to save your configuration. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error saving configuration:", error);
-      toast({
-        title: "Connection Error",
-        description: "Could not connect to the server. Make sure the server is running.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Generate Excel file
-  const generateExcelFile = async () => {
-    setIsGeneratingExcel(true);
-    try {
-      const response = await fetch(`${SERVER_API_URL}/generate-excel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(warehouseAttributes),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        toast({
-          title: "Excel File Generated",
-          description: "Your warehouse data has been exported to Excel.",
-        });
-      } else {
-        console.error("Error generating Excel:", data.error);
-        toast({
-          title: "Excel Generation Error",
-          description: "Failed to generate Excel file. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error generating Excel:", error);
-      toast({
-        title: "Connection Error",
-        description: "Could not connect to the server. Make sure the server is running.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingExcel(false);
-    }
-  };
-
-  // Download Excel file
-  const downloadExcelFile = () => {
-    window.open(`${SERVER_API_URL}/download-excel`, '_blank');
-  };
 
   // Initialize OVKit stream (simulated)
   const handleInitializeStream = () => {
     setIsLoading(true);
+    // Ensure we have *some* valid data before initializing
+    // This check might be redundant if the button is disabled, but adds safety
+    const isValidConfig = Object.values(warehouseAttributes).every(v => v !== null);
+    if (!isValidConfig) {
+      console.warn("Attempted to initialize stream without complete configuration.");
+      toast({
+        title: "Incomplete Data",
+        description: "Cannot initialize visualization without complete warehouse data.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+    console.log("Initializing visualization with:", warehouseAttributes);
     setTimeout(() => {
       setHasStream(true);
       setIsLoading(false);
@@ -240,7 +136,7 @@ const VisualizationPanel: React.FC = () => {
         <h2 className="text-xl font-semibold">Warehouse Visualization</h2>
         
         <div className="flex gap-2">
-          <Button 
+          {/* <Button 
             variant="outline" 
             size="sm"
             onClick={loadExistingConfig}
@@ -277,7 +173,7 @@ const VisualizationPanel: React.FC = () => {
               </>
             )}
           </Button>
-          
+           */}
           {hasStream ? (
             <Button 
               variant="outline" 
@@ -304,21 +200,15 @@ const VisualizationPanel: React.FC = () => {
                   Waiting for Data...
                 </>
               ) : (
-                "Initialize OVKit Stream"
+                <>
+                  <LayoutGrid className="mr-2 h-4 w-4" />
+                  Initialize Omniverse Stream
+                </>
               )}
             </Button>
           )}
         </div>
       </div>
-
-      {hasStream && (
-        <Tabs defaultValue="3d" className="mb-4">
-          <TabsList>
-            <TabsTrigger value="3d" onClick={() => setCurrentViewType("3d")}>3D View</TabsTrigger>
-            <TabsTrigger value="2d" onClick={() => setCurrentViewType("2d")}>2D View</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      )}
 
       <div className="flex-grow relative rounded-lg border overflow-hidden">
         {isLoading ? (
@@ -326,16 +216,14 @@ const VisualizationPanel: React.FC = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <span className="ml-2 text-sm font-medium">Loading visualization...</span>
           </div>
-        ) : hasStream ? (
+        ) : allAttributesFilled ? (
           <div className="h-full bg-muted/30 flex items-center justify-center">
             <div className="text-center p-6">
-              <div className={`text-xl font-semibold mb-2 ${currentViewType === "3d" ? "text-primary" : "text-muted-foreground"}`}>
-                {currentViewType === "3d" ? "3D Warehouse Visualization" : "2D Floor Plan"}
+              <div className="text-xl font-semibold mb-2 text-primary">
+                3D Warehouse Visualization
               </div>
               <p className="text-muted-foreground">
-                {currentViewType === "3d" 
-                  ? `Showing a ${warehouseAttributes.length}m × ${warehouseAttributes.width}m × ${warehouseAttributes.height}m warehouse with ${warehouseAttributes.storage} ${warehouseAttributes.palletType} pallets using ${warehouseAttributes.storageType} storage.` 
-                  : "2D floor plan view showing layout from above with measurements and zone markings."}
+                {`Loading a ${warehouseAttributes.length}m × ${warehouseAttributes.width}m × ${warehouseAttributes.height}m warehouse with ${warehouseAttributes.storage} ${warehouseAttributes.palletType} pallets using ${warehouseAttributes.storageType} storage.`}
               </p>
             </div>
           </div>
@@ -345,42 +233,17 @@ const VisualizationPanel: React.FC = () => {
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
-        {hasStream ? (
+        {allAttributesFilled ? (
           <>
             {renderAttributeCards()}
             {allAttributesFilled && (
-              <div className="col-span-3 flex justify-end gap-2 mt-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex items-center gap-1"
-                  onClick={generateExcelFile}
-                  disabled={isGeneratingExcel}
-                >
-                  {isGeneratingExcel ? (
-                    <Loader2 size={14} className="animate-spin mr-1" />
-                  ) : (
-                    <FileSpreadsheet size={14} className="mr-1" />
-                  )}
-                  {isGeneratingExcel ? "Generating..." : "Generate Excel"}
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="flex items-center gap-1"
-                  onClick={downloadExcelFile}
-                >
-                  <Download size={14} className="mr-1" />
-                  Download Excel
-                </Button>
-              </div>
+              <div className="col-span-3 flex justify-end gap-2 mt-2"></div>
             )}
           </>
         ) : (
           <div className="col-span-3 p-3 rounded-md bg-card shadow-sm">
             <div className="font-medium">Warehouse Configuration</div>
-            <div className="text-muted-foreground">Complete the chat to generate your warehouse visualization</div>
+            <div className="text-muted-foreground">Complete the wizard to generate your warehouse visualization</div>
           </div>
         )}
       </div>
