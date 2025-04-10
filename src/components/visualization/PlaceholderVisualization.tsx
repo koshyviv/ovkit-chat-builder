@@ -11,7 +11,7 @@ const PlaceholderVisualization: React.FC = () => {
         <Box className="h-8 w-8 absolute bottom-0 right-0 text-accent/70 animate-float" />
       </div>
       
-      <h3 className="text-2xl font-semibold mb-3 text-foreground">Visualization Ready</h3>
+      <h3 className="text-2xl font-semibold mb-3 text-foreground">Warehouse Assistant</h3>
       
       <p className="text-center text-muted-foreground max-w-md mb-6">
         Answer questions in the chat to start building your warehouse layout.
