@@ -1,13 +1,13 @@
 
 import React from "react";
-import { Box, CircleNotch, Warehouse } from "lucide-react";
+import { Box, Loader2, Warehouse } from "lucide-react";
 
 const PlaceholderVisualization: React.FC = () => {
   return (
     <div className="h-full w-full bg-gradient-to-br from-background to-muted/20 flex flex-col items-center justify-center p-6">
       <div className="relative mb-8">
         <Warehouse className="h-16 w-16 text-primary opacity-80" />
-        <CircleNotch className="h-24 w-24 absolute -top-4 -left-4 text-primary/20 animate-spin" style={{ animationDuration: '8s' }} />
+        <Loader2 className="h-24 w-24 absolute -top-4 -left-4 text-primary/20 animate-spin" style={{ animationDuration: '8s' }} />
         <Box className="h-8 w-8 absolute bottom-0 right-0 text-accent/70 animate-float" />
       </div>
       
