@@ -35,6 +35,17 @@ const WarehouseDataSchema = z.object({
   storage_type: z.string().describe("Type of storage system (e.g., 'asrs', 'selective racking')")
 });
 
+// Define the mapping for Excel updates
+const EXCEL_MAPPING = {
+  length: { sheet: 'Sheet1', cell: 'C2' },
+  width: { sheet: 'Sheet1', cell: 'C3' },
+  height: { sheet: 'Sheet1', cell: 'C4' },
+  pallet_type: { sheet: 'Sheet1', cell: 'C5' },
+  capacity: { sheet: 'Sheet1', cell: 'C6' },
+  storage_type: { sheet: 'Sheet1', cell: 'C7' },
+  // Add more mappings as needed
+};
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
@@ -129,6 +140,13 @@ app.post('/api/chat', async (req, res) => {
              // Decide how to handle this - send original content? Send an error?
              // For now, we'll proceed without parsed data but log the issue.
         }
+
+        // --- Write to Excel Template (if data was parsed) ---
+        if (parsedData) {
+          // await updateExcelTemplate(parsedData); // Uncomment this line to enable Excel writing
+          console.log("Excel template update skipped (currently commented out).");
+        }
+        // ----------------------------------------------------
 
       } catch (parseError) {
         console.error('Error during structured data extraction:', parseError);
@@ -238,6 +256,51 @@ app.use((req, res, next) => {
   // Send the React index.html for all other routes
   res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
+
+// Function to update the Excel template file
+async function updateExcelTemplate(data) {
+  const templatePath = process.env.EXCEL_TEMPLATE_PATH;
+  if (!templatePath) {
+    console.warn('EXCEL_TEMPLATE_PATH environment variable not set. Skipping Excel update.');
+    return;
+  }
+
+  if (!fs.existsSync(templatePath)) {
+    console.error(`Excel template file not found at: ${templatePath}. Skipping update.`);
+    return;
+  }
+
+  console.log(`Attempting to update Excel template: ${templatePath}`);
+  const workbook = new ExcelJS.Workbook();
+
+  try {
+    await workbook.xlsx.readFile(templatePath);
+
+    for (const key in data) {
+      if (data.hasOwnProperty(key) && EXCEL_MAPPING[key]) {
+        const mapping = EXCEL_MAPPING[key];
+        const worksheet = workbook.getWorksheet(mapping.sheet);
+        if (worksheet) {
+          const cell = worksheet.getCell(mapping.cell);
+          cell.value = data[key];
+          console.log(`Updated sheet '${mapping.sheet}', cell '${mapping.cell}' with value: ${data[key]}`);
+        } else {
+          console.warn(`Sheet '${mapping.sheet}' not found in the template. Skipping update for key '${key}'.`);
+        }
+      } else if (data.hasOwnProperty(key)) {
+          console.warn(`No mapping found for data key '${key}'. Skipping update for this key.`);
+      }
+    }
+
+    await workbook.xlsx.writeFile(templatePath);
+    console.log(`Successfully updated Excel template: ${templatePath}`);
+
+  } catch (error) {
+    console.error(`Error updating Excel template file at ${templatePath}:`, error);
+    // Depending on requirements, you might want to throw the error
+    // or handle it more gracefully (e.g., log and continue)
+  }
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

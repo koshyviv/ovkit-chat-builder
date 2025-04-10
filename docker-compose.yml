@@ -40,6 +40,7 @@ services:
       - PORT=3001
       # Pass through OpenAI API key from host .env file if present
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EXCEL_TEMPLATE_PATH=${EXCEL_TEMPLATE_PATH}
     # Expose the port for inter-container communication (frontend to backend)
     expose:
       - 3001
