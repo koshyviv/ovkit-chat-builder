@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      target: app  # Use the final stage from our multi-stage build
     ports:
       - "8080:8080" # Map host port 8080 to container port 8080 (Vite default)
     volumes:
@@ -28,6 +29,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      target: app  # Use the final stage from our multi-stage build
     ports:
       - "3001:3001" # Map host port 3001 to container port 3001 (server.js)
     volumes:

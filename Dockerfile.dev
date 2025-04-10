@@ -1,29 +1,30 @@
-# Use an official Node.js LTS image.
-FROM node:18-alpine AS development
+# Stage 1: Build the NVIDIA web-viewer-sample to extract dependencies
+FROM node:18 as nvidia-deps-builder
+WORKDIR /nvidia-build
 
-# Set the working directory in the container
+# Clone the repository
+RUN git clone https://github.com/NVIDIA-Omniverse/web-viewer-sample.git .
+
+# Install dependencies - this will fetch the private package
+RUN npm install
+
+# Stage 2: Build the main application using the previously fetched dependencies
+FROM node:18 as app
 WORKDIR /app
 
-# Copy package.json and package-lock.json (or yarn.lock/pnpm-lock.yaml)
-COPY package*.json ./
-# If using yarn, copy yarn.lock
-# COPY yarn.lock ./
-# If using pnpm, copy pnpm-lock.yaml
-# COPY pnpm-lock.yaml ./
+# Copy package files
+COPY package.json package-lock.json ./
 
-# Install dependencies
-# Using npm ci for potentially faster and more reliable installs
-RUN npm ci
+# Copy the node_modules from the first stage that contains the NVIDIA library
+COPY --from=nvidia-deps-builder /nvidia-build/node_modules/@nvidia /app/node_modules/@nvidia
 
-# Copy the rest of the application code
+# Install the rest of our dependencies
+RUN npm install
+
+# Copy the rest of the application
 COPY . .
 
-# Expose the ports the frontend and backend will run on
-# Frontend port (Vite default, adjust if different)
+# Development server runs on port 8080
 EXPOSE 8080
-# Backend port (defined in server.js)
-EXPOSE 3001
 
-# Default command (can be overridden in docker-compose.yml)
-# We don't need a default command here as docker-compose will specify them.
-CMD [ "sh", "-c", "echo 'Please specify a command in docker-compose.yml'" ] 
+# Command is specified in docker-compose.yml 
