@@ -28,8 +28,9 @@ const INITIAL_MESSAGES: Message[] = [
   },
 ];
 
-// Server API endpoint
-const SERVER_API_URL = "http://localhost:3001/api";
+// Server API endpoint (using environment variable)
+// Fallback to localhost if the env var is not set during local dev outside Docker
+const SERVER_API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
 
 // Define types/interfaces
 interface ChatApiResponse {

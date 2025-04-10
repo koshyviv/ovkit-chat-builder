@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080" # Map host port 8080 to container port 8080 (Vite default)
+    volumes:
+      # Mount the source code for hot reloading
+      # Exclude node_modules to use the ones installed in the container
+      - .:/app
+      - /app/node_modules
+    environment:
+      # This tells Vite to bind to all network interfaces inside the container
+      - HOST=0.0.0.0
+      # Define the backend API URL for the frontend
+      - VITE_API_BASE_URL=http://localhost:3001/api
+      # Pass through OpenAI API key from host .env file if present
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    command: npm run dev
+    # Depends on the backend starting first, though this doesn't guarantee readiness
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3001" # Map host port 3001 to container port 3001 (server.js)
+    volumes:
+      # Mount the source code for hot reloading
+      # Exclude node_modules to use the ones installed in the container
+      - .:/app
+      - /app/node_modules
+    environment:
+      # Ensure backend also uses the correct port if needed internally
+      - PORT=3001
+      # Pass through OpenAI API key from host .env file if present
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    # Expose the port for inter-container communication (frontend to backend)
+    expose:
+      - 3001
+    command: node server.js 
